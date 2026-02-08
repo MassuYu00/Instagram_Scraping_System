@@ -39,20 +39,59 @@ COUNTRY_TARGETS = {
         ]
     },
     "Thailand": {
-        "hashtags": ["thailandjobs", "bangkokrentals", "タイ就職", "バンコク生活", "thailandtravel"],
-        "accounts": [] # Add accounts if known
+        "hashtags": [
+            "bangkokjobs",      # バンコク求人
+            "bangkokrentals",   # バンコク賃貸
+            "タイ就職",          # 日本語ハッシュタグ
+            "バンコク駐在",      # 駐在員向け
+            "バンコク生活",      # 生活情報
+            "thailandexpat",    # 外国人向け
+        ],
+        "accounts": [
+            "renosy_thailand",  # 日系不動産（住居情報）
+            "bangkokfudosan",   # バンコク不動産
+        ]
     },
     "Philippines": {
-        "hashtags": ["philippinesjobs", "manilarentals", "セブ島留学", "フィリピン求人", "manilalife"],
-        "accounts": []
+        "hashtags": [
+            "cebulife",         # セブ島生活
+            "manilalife",       # マニラ生活
+            "セブ島留学",        # 留学生向け
+            "フィリピン求人",    # 求人情報
+            "cebuenglish",      # 英語留学
+            "philippinesexpat", # 外国人向け
+        ],
+        "accounts": [
+            "cebuenglish",      # セブ英語留学情報
+        ]
     },
     "UK": {
-        "hashtags": ["ukjobs", "londonrentals", "イギリスワーホリ", "ロンドン生活", "uklife"],
-        "accounts": []
+        "hashtags": [
+            "londonjobs",       # ロンドン求人
+            "londonrentals",    # ロンドン賃貸
+            "イギリスワーホリ",  # ワーホリ向け
+            "ロンドン生活",      # 生活情報
+            "londonjapan",      # 日本人コミュニティ
+            "ukworkingholiday", # ワーホリ
+        ],
+        "accounts": [
+            "japanhouseld",     # Japan House London（文化・イベント）
+            "mixb_london",      # MixB（求人・住居掲示板）
+        ]
     },
     "Australia": {
-        "hashtags": ["australiajobs", "sydneyrentals", "オーストラリアワーホリ", "メルボルンカフェ", "sydneylife"],
-        "accounts": []
+        "hashtags": [
+            "sydneyjobs",       # シドニー求人
+            "melbournejobs",    # メルボルン求人
+            "オーストラリアワーホリ", # ワーホリ向け
+            "シドニー生活",      # 生活情報
+            "メルボルンカフェ",  # カフェ求人（ワーホリ人気）
+            "australiaworkingholiday",
+        ],
+        "accounts": [
+            "nichigopress",     # 日豪プレス（日本人コミュニティメディア）
+            "izakayadomo",      # 居酒屋DOMO（メルボルン求人）
+        ]
     }
 }
 
