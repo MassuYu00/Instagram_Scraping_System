@@ -32,7 +32,6 @@ export default function ScraperAdmin() {
     const [loading, setLoading] = useState(false);
     const [logs, setLogs] = useState<string>('');
     const [status, setStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
-    const [targets, setTargets] = useState<string>('');
     const [country, setCountry] = useState<string>('Toronto');
     const [posts, setPosts] = useState<Post[]>([]);
     const [logSummary, setLogSummary] = useState<LogSummary | null>(null);
@@ -143,7 +142,7 @@ export default function ScraperAdmin() {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ targets, country }),
+                body: JSON.stringify({ country }),
             });
 
             const data = await response.json();
@@ -196,16 +195,6 @@ export default function ScraperAdmin() {
                     <option value="UK">United Kingdom</option>
                     <option value="Australia">Australia</option>
                 </select>
-
-                <p>ターゲット（ハッシュタグまたはアカウント名）をカンマ区切りで入力してください。空欄の場合はデフォルト設定が使用されます。</p>
-                <input
-                    type="text"
-                    placeholder="例: #torontojobs, @blogto"
-                    value={targets}
-                    onChange={(e) => setTargets(e.target.value)}
-                    style={{ width: '100%', padding: '10px', fontSize: '16px', marginBottom: '10px' }}
-                />
-                <p><strong>デフォルト設定:</strong> #torontojobs, #torontorentals, @blogto, @torontolife</p>
             </div>
 
             <button
