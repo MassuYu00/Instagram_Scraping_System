@@ -29,7 +29,14 @@ APIFY_ACTOR_ID = "shu8hvrXbJbY3Eb9W"  # Instagram Scraper (apify/instagram-scrap
 COUNTRY_TARGETS = {
     "Toronto": {
         "hashtags": ["torontojobs", "torontorentals", "トロント求人", "torontoevents"],
-        "accounts": ["blogto", "torontolife"]
+        "accounts": [
+            "blogto",           # トロントのニュース・イベント情報
+            "torontolife",      # トロントのライフスタイル情報
+            "sansoteiramen",    # 日本食レストラン（求人あり）
+            "gyukaku",          # 牛角（求人頻度高い）
+            "kibosushi_official", # KIBO寿司（寿司シェフ求人）
+            "hibachicanada",    # Hibachi（複数ポジション求人）
+        ]
     },
     "Thailand": {
         "hashtags": ["thailandjobs", "bangkokrentals", "タイ就職", "バンコク生活", "thailandtravel"],
@@ -147,8 +154,8 @@ def fetch_instagram_posts(custom_targets=None, country="Toronto"):
     existing_shortcodes = get_existing_shortcodes()
     print(f"Found {len(existing_shortcodes)} existing posts in database.")
     
-    # Only get posts from the last 7 days
-    cutoff_date = datetime.now(timezone.utc) - timedelta(days=7)
+    # Only get posts from the last 14 days
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=14)
     print(f"Filtering posts newer than: {cutoff_date.strftime('%Y-%m-%d')}")
     
     print(f"Filtering {len(posts)} raw posts...")
