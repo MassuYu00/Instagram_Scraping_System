@@ -2,11 +2,28 @@ import os
 import requests
 import json
 from dotenv import load_dotenv
+from supabase import create_client
 
 # Load environment variables
 load_dotenv()
 
 APIFY_TOKEN = os.getenv("APIFY_TOKEN")
+
+# Supabase for duplicate check
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+def get_existing_shortcodes():
+    """Fetch existing shortcodes from DB to avoid duplicate processing."""
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        return set()
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        result = supabase.table("posts").select("instagram_shortcode").execute()
+        return {row["instagram_shortcode"] for row in result.data if row.get("instagram_shortcode")}
+    except Exception as e:
+        print(f"Warning: Could not fetch existing shortcodes: {e}")
+        return set()
 APIFY_ACTOR_ID = "shu8hvrXbJbY3Eb9W"  # Instagram Scraper (apify/instagram-scraper) - confirm this ID or similar
 
 COUNTRY_TARGETS = {
@@ -119,8 +136,6 @@ def fetch_instagram_posts(custom_targets=None, country="Toronto"):
     results_response = requests.get(dataset_url)
     posts = results_response.json()
 
-
-    
     formatted_posts = []
     
     # Filtering setup
@@ -128,56 +143,54 @@ def fetch_instagram_posts(custom_targets=None, country="Toronto"):
     import warnings
     warnings.filterwarnings("ignore", category=FutureWarning)
     
-    # Threshold for "fresh" content (e.g., 14 days ago)
-    # Note: Instagram timestamps in API are usually UTC ISO strings
-    # Relaxed to 730 days (2 years) to ensure we get some content even if recent posts are few
-    three_days_ago = datetime.now(timezone.utc) - timedelta(days=730)
+    # Get existing shortcodes to skip duplicates
+    existing_shortcodes = get_existing_shortcodes()
+    print(f"Found {len(existing_shortcodes)} existing posts in database.")
     
-    keywords = ["Toronto", "Job", "House", "Event", "日本", "日本人", "ワーホリ", "Downtown", "Hiring"]
+    # Threshold for fresh content (730 days)
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=730)
     
     print(f"Filtering {len(posts)} raw posts...")
+    skipped_duplicates = 0
     
     for post in posts:
         # 0. Validate it's a post
-        if not post.get("shortCode"):
+        shortcode = post.get("shortCode")
+        if not shortcode:
             continue
 
-        # 1. Date Filter
+        # 1. Duplicate Filter - Skip if already in database
+        if shortcode in existing_shortcodes:
+            skipped_duplicates += 1
+            continue
+
+        # 2. Date Filter
         timestamp_str = post.get("timestamp")
         if timestamp_str:
             try:
-                # Handle ISO format. Z means UTC.
                 post_date = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
-                if post_date < three_days_ago:
-                    # Skip old posts
-                    pass 
+                if post_date < cutoff_date:
                     continue
             except ValueError:
-                pass # If date parse fails, we might keep it or log warning
+                pass
 
         text = post.get("caption", "")
-        
-        # 2. Keyword Filter (Optional, strictness adjustable)
-        # Using a broad filter here, specific classification is done by AI.
-        # However, for specific accounts (like blogto), we might want to be looser with keywords 
-        # because the account itself is relevant.
-        # if not any(k.lower() in text.lower() for k in keywords):
-        #    continue
 
         formatted_post = {
             "text": text,
             "imageUrl": post.get("displayUrl") or post.get("thumbnailUrl"),
-            "postUrl": f"https://www.instagram.com/p/{post.get('shortCode')}/",
+            "postUrl": f"https://www.instagram.com/p/{shortcode}/",
             "timestamp": timestamp_str,
             "username": post.get("ownerUsername"),
-            "shortcode": post.get("shortCode")
+            "shortcode": shortcode
         }
         formatted_posts.append(formatted_post)
     
-    # Validation: Ensure we strictly return max 10 posts to save API costs
+    # Limit to 10 posts to save API costs
     final_posts = formatted_posts[:10]
     
-    print(f"Retained {len(final_posts)} posts after filtering (Max 10).")
+    print(f"Skipped {skipped_duplicates} duplicate posts.")
+    print(f"Retained {len(final_posts)} new posts for processing (Max 10).")
     return final_posts
 
 if __name__ == "__main__":

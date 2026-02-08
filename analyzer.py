@@ -30,65 +30,19 @@ model = genai.GenerativeModel("gemini-flash-latest", generation_config=generatio
 
 
 def analyze_post(post_data):
-    """
-    Analyzes a single post using Gemini 1.5 Pro.
-    Expects post_data to be a dictionary with 'text' and 'imageUrl' keys.
-    """
+    """Analyzes a single post using Gemini."""
     text = post_data.get("text", "")
-    image_url = post_data.get("imageUrl", "")
     
-    # Prompt construction
-    prompt = f"""
-    Analyze the following Instagram post content for a portal site "Toronto Info" targeting Japanese people in Toronto.
-    
-    **Input Data:**
-    - Text: {text}
-    - Image URL: {image_url} (Please analyze the image content if possible, accessing the URL directly might not be supported in this script without downloading, but treat the text as primary source + OCR if image bytes were provided. *Note: In a production script, we would download the image bytes and pass them to Gemini.*)
-    
-    **Instructions:**
-    1.  **Classify** the post into one of these categories: [Job, House, Event, Ignore].
-        -   **Job**: Recruitment, hiring, part-time, full-time.
-        -   **House**: Room for rent, apartment, roommate search.
-        -   **Event**: Party, meetup, festival, workshop.
-        -   **Ignore**: Irrelevant content, spam, or not related to Toronto/Japan/Living.
-    2.  **Extract** information based on the category.
-    3.  **Rewrite** the description into a polite, modern, and sincere Japanese introduction (max 150 chars) suitable for "Toronto Info".
-    
-    **Output JSON Schema:**
-    ```json
-    {{
-      "category": "Job | House | Event | Ignore",
-      "data": {{
-        "instagram_shortcode": "{post_data.get('shortcode', '')}",
-        "original_url": "{post_data.get('postUrl')}",
-        "posted_at": "{post_data.get('timestamp')}",
-        "author": "{post_data.get('username')}",
-        "rewritten_text": "Translated/Rewritten description...",
-        
-        // Fields for Job
-        "job_title": "...",
-        "job_description_summary": "...", // 100 chars
-        "shop_name": "...",
-        "location": "...",
-        "apply_method": "...",
-        
-        // Fields for House
-        "rent_price": 0, // Number (CAD)
-        "area": "...",
-        "nearest_station": "...",
-        "room_type": "...",
-        "move_in_date": "...",
-        
-        // Fields for Event
-        "event_name": "...",
-        "event_date": "...",
-        "event_place": "..."
-      }}
-    }}
-    ```
-    
-    Return ONLY the JSON.
-    """
+    prompt = f"""Classify this Instagram post and extract info for Japanese expats.
+
+Text: {text}
+
+Categories: Job(hiring/recruitment), House(rent/roommate), Event(meetup/party), Ignore(spam/irrelevant)
+
+Output JSON only:
+{{"category":"Job|House|Event|Ignore","data":{{"rewritten_text":"Japanese description (max 150 chars)","job_title":"","shop_name":"","location":"","rent_price":0,"area":"","event_name":"","event_date":"","event_place":""}}}}
+
+Include only relevant fields for the category. Return ONLY valid JSON."""
     
     # In a real implementation effectively using Multimodal, we would fetch the image bytes:
     # import requests
