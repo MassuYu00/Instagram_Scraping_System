@@ -18,6 +18,16 @@ interface Post {
     analysis_result: any;
 }
 
+interface LogSummary {
+    totalFetched: number;
+    duplicateSkipped: number;
+    oldSkipped: number;
+    newPosts: number;
+    categories: { [key: string]: number };
+    status: 'idle' | 'running' | 'success' | 'error' | 'no_data';
+    message: string;
+}
+
 export default function ScraperAdmin() {
     const [loading, setLoading] = useState(false);
     const [logs, setLogs] = useState<string>('');
@@ -25,6 +35,7 @@ export default function ScraperAdmin() {
     const [targets, setTargets] = useState<string>('');
     const [country, setCountry] = useState<string>('Toronto');
     const [posts, setPosts] = useState<Post[]>([]);
+    const [logSummary, setLogSummary] = useState<LogSummary | null>(null);
 
     const [selectedPosts, setSelectedPosts] = useState<number[]>([]);
 
@@ -75,10 +86,56 @@ export default function ScraperAdmin() {
         setLoading(false);
     };
 
+    // Parse log output to extract summary
+    const parseLogOutput = (output: string): LogSummary => {
+        const summary: LogSummary = {
+            totalFetched: 0,
+            duplicateSkipped: 0,
+            oldSkipped: 0,
+            newPosts: 0,
+            categories: {},
+            status: 'success',
+            message: ''
+        };
+
+        // Parse numbers from log
+        const fetchedMatch = output.match(/Filtering (\d+) raw posts/);
+        if (fetchedMatch) summary.totalFetched = parseInt(fetchedMatch[1]);
+
+        const dupMatch = output.match(/Skipped (\d+) duplicate/);
+        if (dupMatch) summary.duplicateSkipped = parseInt(dupMatch[1]);
+
+        const oldMatch = output.match(/Skipped (\d+) old posts/);
+        if (oldMatch) summary.oldSkipped = parseInt(oldMatch[1]);
+
+        const retainedMatch = output.match(/Retained (\d+) new posts/);
+        if (retainedMatch) summary.newPosts = parseInt(retainedMatch[1]);
+
+        // Parse categories
+        const catMatch = output.match(/Category breakdown: ({[^}]+})/);
+        if (catMatch) {
+            try {
+                summary.categories = JSON.parse(catMatch[1].replace(/'/g, '"'));
+            } catch { }
+        }
+
+        // Check for no data
+        if (output.includes('No posts found to process')) {
+            summary.status = 'no_data';
+            summary.message = '処理可能な新しい投稿がありませんでした';
+        } else if (output.includes('=== Done ===')) {
+            summary.status = 'success';
+            summary.message = 'スクレイピング完了';
+        }
+
+        return summary;
+    };
+
     const startScraping = async () => {
         setLoading(true);
         setStatus('running');
-        setLogs('Starting scraper...\n');
+        setLogs('');
+        setLogSummary(null);
 
         try {
             const response = await fetch('/api/scrape', {
@@ -93,20 +150,30 @@ export default function ScraperAdmin() {
 
             if (data.success) {
                 setStatus('success');
-                setLogs((prev) => prev + "--- STDOUT ---\n" + data.output + "\n");
-                if (data.error) {
-                    setLogs((prev) => prev + "--- STDERR ---\n" + data.error + "\n");
-                }
+                setLogs(data.output || '');
+
+                // Parse and set summary
+                const summary = parseLogOutput(data.output || '');
+                setLogSummary(summary);
+
                 // Refresh posts after scraping
                 fetchPosts();
             } else {
                 setStatus('error');
-                setLogs((prev) => prev + "Error: " + data.error + "\n");
+                setLogs(data.error || 'Unknown error');
+                setLogSummary({
+                    totalFetched: 0, duplicateSkipped: 0, oldSkipped: 0, newPosts: 0,
+                    categories: {}, status: 'error', message: data.error || 'エラーが発生しました'
+                });
             }
 
         } catch (error: any) {
             setStatus('error');
-            setLogs((prev) => prev + "Network/Server Error: " + error.message + "\n");
+            setLogs(error.message);
+            setLogSummary({
+                totalFetched: 0, duplicateSkipped: 0, oldSkipped: 0, newPosts: 0,
+                categories: {}, status: 'error', message: 'ネットワークエラー: ' + error.message
+            });
         } finally {
             setLoading(false);
         }
@@ -157,20 +224,99 @@ export default function ScraperAdmin() {
                 {loading ? 'スクレイピング実行中...' : 'スクレイピング開始'}
             </button>
 
-            {status !== 'idle' && (
+            {logSummary && (
                 <div style={{ marginTop: '20px', marginBottom: '40px' }}>
-                    <h3>実行ログ:</h3>
-                    <pre style={{
-                        backgroundColor: '#f4f4f4',
-                        padding: '15px',
-                        borderRadius: '5px',
-                        overflowX: 'auto',
-                        maxHeight: '300px',
-                        whiteSpace: 'pre-wrap',
-                        fontFamily: 'monospace'
+                    {/* Status Banner */}
+                    <div style={{
+                        padding: '15px 20px',
+                        borderRadius: '8px',
+                        marginBottom: '20px',
+                        backgroundColor: logSummary.status === 'success' ? '#d4edda' :
+                            logSummary.status === 'no_data' ? '#fff3cd' :
+                                logSummary.status === 'error' ? '#f8d7da' : '#e2e3e5',
+                        color: logSummary.status === 'success' ? '#155724' :
+                            logSummary.status === 'no_data' ? '#856404' :
+                                logSummary.status === 'error' ? '#721c24' : '#383d41',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px'
                     }}>
-                        {logs}
-                    </pre>
+                        <span style={{ fontSize: '24px' }}>
+                            {logSummary.status === 'success' ? '✅' :
+                                logSummary.status === 'no_data' ? '⚠️' :
+                                    logSummary.status === 'error' ? '❌' : '⏳'}
+                        </span>
+                        <span style={{ fontSize: '16px', fontWeight: 'bold' }}>
+                            {logSummary.message || 'スクレイピング完了'}
+                        </span>
+                    </div>
+
+                    {/* Stats Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', marginBottom: '20px' }}>
+                        <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px', textAlign: 'center' }}>
+                            <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#0070f3' }}>{logSummary.totalFetched}</div>
+                            <div style={{ fontSize: '12px', color: '#666' }}>取得投稿数</div>
+                        </div>
+                        <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px', textAlign: 'center' }}>
+                            <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#6c757d' }}>{logSummary.duplicateSkipped}</div>
+                            <div style={{ fontSize: '12px', color: '#666' }}>重複スキップ</div>
+                        </div>
+                        <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px', textAlign: 'center' }}>
+                            <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#fd7e14' }}>{logSummary.oldSkipped}</div>
+                            <div style={{ fontSize: '12px', color: '#666' }}>古い投稿</div>
+                        </div>
+                        <div style={{ padding: '15px', backgroundColor: '#e7f5ff', borderRadius: '8px', textAlign: 'center' }}>
+                            <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#0070f3' }}>{logSummary.newPosts}</div>
+                            <div style={{ fontSize: '12px', color: '#666' }}>新規処理</div>
+                        </div>
+                    </div>
+
+                    {/* Category Breakdown */}
+                    {Object.keys(logSummary.categories).length > 0 && (
+                        <div style={{ marginBottom: '20px' }}>
+                            <h4 style={{ marginBottom: '10px' }}>カテゴリ内訳</h4>
+                            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                {logSummary.categories.Job !== undefined && (
+                                    <span style={{ padding: '8px 16px', backgroundColor: '#28a745', color: 'white', borderRadius: '20px', fontSize: '14px' }}>
+                                        💼 Job: {logSummary.categories.Job}
+                                    </span>
+                                )}
+                                {logSummary.categories.House !== undefined && (
+                                    <span style={{ padding: '8px 16px', backgroundColor: '#17a2b8', color: 'white', borderRadius: '20px', fontSize: '14px' }}>
+                                        🏠 House: {logSummary.categories.House}
+                                    </span>
+                                )}
+                                {logSummary.categories.Event !== undefined && (
+                                    <span style={{ padding: '8px 16px', backgroundColor: '#6f42c1', color: 'white', borderRadius: '20px', fontSize: '14px' }}>
+                                        🎉 Event: {logSummary.categories.Event}
+                                    </span>
+                                )}
+                                {logSummary.categories.Ignore !== undefined && (
+                                    <span style={{ padding: '8px 16px', backgroundColor: '#6c757d', color: 'white', borderRadius: '20px', fontSize: '14px' }}>
+                                        🚫 Ignore: {logSummary.categories.Ignore}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Collapsible Raw Log */}
+                    <details style={{ marginTop: '10px' }}>
+                        <summary style={{ cursor: 'pointer', color: '#666', fontSize: '14px' }}>詳細ログを表示</summary>
+                        <pre style={{
+                            backgroundColor: '#f4f4f4',
+                            padding: '15px',
+                            borderRadius: '5px',
+                            overflowX: 'auto',
+                            maxHeight: '200px',
+                            whiteSpace: 'pre-wrap',
+                            fontFamily: 'monospace',
+                            fontSize: '12px',
+                            marginTop: '10px'
+                        }}>
+                            {logs}
+                        </pre>
+                    </details>
                 </div>
             )}
 
