@@ -4,7 +4,7 @@ import path from 'path';
 
 export async function POST(request: Request) {
   try {
-    const { targets, country } = await request.json().catch(() => ({}));
+    const { country, daysFilter, maxPosts, skipDuplicates } = await request.json().catch(() => ({}));
 
     // Determine the path to the main.py script
     // Assuming 'frontend' is in the project root, and main.py is in the parent directory
@@ -12,15 +12,22 @@ export async function POST(request: Request) {
     const projectRoot = path.resolve(process.cwd(), '../');
 
     let command = `python3 ${scriptPath}`;
-    if (targets && typeof targets === 'string' && targets.trim().length > 0) {
-      // sanitize inputs to avoid command injection is ideal, but for internal tool we just pass it
-      // Simple validation: ensure it only contains allowed chars if needed, or rely on python arg parser
-      // We wrap it in quotes to handle spaces if any (though targets shouldn't have spaces ideally)
-      command += ` --targets "${targets}"`;
-    }
 
     if (country && typeof country === 'string' && country.trim().length > 0) {
       command += ` --country "${country}"`;
+    }
+
+    // Add filter settings
+    if (daysFilter && typeof daysFilter === 'number') {
+      command += ` --days ${daysFilter}`;
+    }
+
+    if (maxPosts && typeof maxPosts === 'number') {
+      command += ` --limit ${maxPosts}`;
+    }
+
+    if (skipDuplicates === false) {
+      command += ` --no-skip-duplicates`;
     }
 
     console.log(`Executing command: ${command}`);

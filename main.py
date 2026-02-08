@@ -11,20 +11,26 @@ CATEGORY_PRIORITY = {"Job": 0, "House": 1, "Event": 2, "Ignore": 3, "Error": 4}
 
 def main():
     parser = argparse.ArgumentParser(description="Toronto Info Scraper")
-    parser.add_argument("--targets", type=str, help="Comma-separated list of targets (e.g. '#job,@blogto')")
     parser.add_argument("--country", type=str, default="Toronto", help="Target country (e.g. Toronto, Thailand)")
+    parser.add_argument("--days", type=int, default=14, help="Number of days to filter posts (default: 14)")
+    parser.add_argument("--limit", type=int, default=10, help="Maximum number of posts to process (default: 10)")
+    parser.add_argument("--no-skip-duplicates", action="store_true", help="Disable duplicate filtering")
     args = parser.parse_args()
     
-    custom_targets = None
-    if args.targets:
-        custom_targets = args.targets.split(",")
+    skip_duplicates = not args.no_skip_duplicates
     
     print(f"=== Starting Content Aggregator for {args.country} ===")
+    print(f"Settings: Days={args.days}, Limit={args.limit}, SkipDuplicates={skip_duplicates}")
     
     # 1. Fetch Posts
     print("\n[1/3] Fetching posts from Instagram (Apify)...")
     try:
-        posts = fetch_instagram_posts(custom_targets=custom_targets, country=args.country)
+        posts = fetch_instagram_posts(
+            country=args.country,
+            days_filter=args.days,
+            max_posts=args.limit,
+            skip_duplicates=skip_duplicates
+        )
         print(f"Found {len(posts)} potential posts.")
     except Exception as e:
         print(f"Error fetching posts: {e}")

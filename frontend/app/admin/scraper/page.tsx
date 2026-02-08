@@ -36,6 +36,11 @@ export default function ScraperAdmin() {
     const [posts, setPosts] = useState<Post[]>([]);
     const [logSummary, setLogSummary] = useState<LogSummary | null>(null);
 
+    // Filter settings
+    const [daysFilter, setDaysFilter] = useState<number>(14);
+    const [maxPosts, setMaxPosts] = useState<number>(10);
+    const [skipDuplicates, setSkipDuplicates] = useState<boolean>(true);
+
     const [selectedPosts, setSelectedPosts] = useState<number[]>([]);
 
     useEffect(() => {
@@ -142,7 +147,12 @@ export default function ScraperAdmin() {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ country }),
+                body: JSON.stringify({
+                    country,
+                    daysFilter,
+                    maxPosts,
+                    skipDuplicates
+                }),
             });
 
             const data = await response.json();
@@ -195,6 +205,60 @@ export default function ScraperAdmin() {
                     <option value="UK">United Kingdom</option>
                     <option value="Australia">Australia</option>
                 </select>
+            </div>
+
+            {/* Filter Settings */}
+            <div style={{
+                marginBottom: '1.5rem',
+                padding: '15px',
+                backgroundColor: '#f8f9fa',
+                borderRadius: '8px',
+                border: '1px solid #e9ecef'
+            }}>
+                <h4 style={{ marginTop: 0, marginBottom: '15px', color: '#495057' }}>フィルター設定</h4>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px' }}>
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', color: '#666' }}>
+                            📅 対象期間（日）
+                        </label>
+                        <input
+                            type="number"
+                            min="1"
+                            max="365"
+                            value={daysFilter}
+                            onChange={(e) => setDaysFilter(parseInt(e.target.value) || 14)}
+                            style={{ width: '100%', padding: '8px', fontSize: '14px', borderRadius: '4px', border: '1px solid #ced4da' }}
+                        />
+                    </div>
+
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', color: '#666' }}>
+                            📊 取得上限
+                        </label>
+                        <input
+                            type="number"
+                            min="1"
+                            max="50"
+                            value={maxPosts}
+                            onChange={(e) => setMaxPosts(parseInt(e.target.value) || 10)}
+                            style={{ width: '100%', padding: '8px', fontSize: '14px', borderRadius: '4px', border: '1px solid #ced4da' }}
+                        />
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', paddingTop: '20px' }}>
+                        <input
+                            type="checkbox"
+                            id="skipDuplicates"
+                            checked={skipDuplicates}
+                            onChange={(e) => setSkipDuplicates(e.target.checked)}
+                            style={{ marginRight: '8px', width: '18px', height: '18px' }}
+                        />
+                        <label htmlFor="skipDuplicates" style={{ fontSize: '14px', color: '#666' }}>
+                            🔄 重複スキップ
+                        </label>
+                    </div>
+                </div>
             </div>
 
             <button

@@ -95,40 +95,29 @@ COUNTRY_TARGETS = {
     }
 }
 
-def fetch_instagram_posts(custom_targets=None, country="Toronto"):
+def fetch_instagram_posts(country="Toronto", days_filter=14, max_posts=10, skip_duplicates=True):
     """
     Fetches Instagram posts using Apify's Instagram Scraper.
     Refined to use direct URLs for better accuracy and filters by date.
-    Accepts custom_targets: list of strings (e.g. "torontojobs", "@blogto").
-    Accepts country: string key for COUNTRY_TARGETS (default "Toronto").
+    
+    Args:
+        country: string key for COUNTRY_TARGETS (default "Toronto")
+        days_filter: number of days to look back (default 14)
+        max_posts: maximum number of posts to return (default 10)
+        skip_duplicates: whether to skip posts already in database (default True)
     """
     if not APIFY_TOKEN:
         raise ValueError("APIFY_TOKEN not found in environment variables.")
 
-    # Target URLs
-    direct_urls = []
+    # Target URLs based on country
+    print(f"Using default targets for country: {country}")
+    target_data = COUNTRY_TARGETS.get(country, COUNTRY_TARGETS["Toronto"])
     
-    if custom_targets:
-        print(f"Using custom targets: {custom_targets}")
-        for target in custom_targets:
-            target = target.strip()
-            if target.startswith("@"):
-                # Account
-                direct_urls.append(f"https://www.instagram.com/{target[1:]}/")
-            else:
-                # Hashtag (handle # prefix if present)
-                tag = target.replace("#", "")
-                direct_urls.append(f"https://www.instagram.com/explore/tags/{tag}/")
-    else:
-        # Default targets based on country
-        print(f"Using default targets for country: {country}")
-        target_data = COUNTRY_TARGETS.get(country, COUNTRY_TARGETS["Toronto"])
-        
-        hashtags = target_data.get("hashtags", [])
-        accounts = target_data.get("accounts", [])
-        
-        direct_urls = [f"https://www.instagram.com/explore/tags/{tag}/" for tag in hashtags]
-        direct_urls += [f"https://www.instagram.com/{account}/" for account in accounts]
+    hashtags = target_data.get("hashtags", [])
+    accounts = target_data.get("accounts", [])
+    
+    direct_urls = [f"https://www.instagram.com/explore/tags/{tag}/" for tag in hashtags]
+    direct_urls += [f"https://www.instagram.com/{account}/" for account in accounts]
 
     
     # Configuration for apify/instagram-scraper
@@ -190,12 +179,15 @@ def fetch_instagram_posts(custom_targets=None, country="Toronto"):
     warnings.filterwarnings("ignore", category=FutureWarning)
     
     # Get existing shortcodes to skip duplicates
-    existing_shortcodes = get_existing_shortcodes()
-    print(f"Found {len(existing_shortcodes)} existing posts in database.")
+    existing_shortcodes = get_existing_shortcodes() if skip_duplicates else set()
+    if skip_duplicates:
+        print(f"Found {len(existing_shortcodes)} existing posts in database.")
+    else:
+        print("Duplicate filtering disabled.")
     
-    # Only get posts from the last 14 days
-    cutoff_date = datetime.now(timezone.utc) - timedelta(days=14)
-    print(f"Filtering posts newer than: {cutoff_date.strftime('%Y-%m-%d')}")
+    # Date filter based on days_filter parameter
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_filter)
+    print(f"Filtering posts newer than: {cutoff_date.strftime('%Y-%m-%d')} ({days_filter} days)")
     
     print(f"Filtering {len(posts)} raw posts...")
     skipped_duplicates = 0
@@ -207,8 +199,8 @@ def fetch_instagram_posts(custom_targets=None, country="Toronto"):
         if not shortcode:
             continue
 
-        # 1. Duplicate Filter - Skip if already in database
-        if shortcode in existing_shortcodes:
+        # 1. Duplicate Filter - Skip if already in database (only if enabled)
+        if skip_duplicates and shortcode in existing_shortcodes:
             skipped_duplicates += 1
             continue
 
@@ -235,12 +227,12 @@ def fetch_instagram_posts(custom_targets=None, country="Toronto"):
         }
         formatted_posts.append(formatted_post)
     
-    # Limit to 10 posts to save API costs
-    final_posts = formatted_posts[:10]
+    # Limit to max_posts to save API costs
+    final_posts = formatted_posts[:max_posts]
     
     print(f"Skipped {skipped_duplicates} duplicate posts.")
-    print(f"Skipped {skipped_old} old posts (older than 7 days).")
-    print(f"Retained {len(final_posts)} new posts for processing (Max 10).")
+    print(f"Skipped {skipped_old} old posts (older than {days_filter} days).")
+    print(f"Retained {len(final_posts)} new posts for processing (Max {max_posts}).")
     return final_posts
 
 if __name__ == "__main__":
