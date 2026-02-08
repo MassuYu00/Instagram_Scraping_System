@@ -27,9 +27,6 @@ def save_post(analyzed_data):
         return False
 
     category = analyzed_data.get("category")
-    if category == "Ignore":
-        print(f"Skipping ignored post.")
-        return True
 
     data = analyzed_data.get("data", {})
     original_url = data.get("original_url")
