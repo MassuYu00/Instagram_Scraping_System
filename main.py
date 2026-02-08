@@ -6,6 +6,9 @@ from database import save_post
 
 import argparse
 
+# Category priority: Job > House > Event > Ignore
+CATEGORY_PRIORITY = {"Job": 0, "House": 1, "Event": 2, "Ignore": 3, "Error": 4}
+
 def main():
     parser = argparse.ArgumentParser(description="Toronto Info Scraper")
     parser.add_argument("--targets", type=str, help="Comma-separated list of targets (e.g. '#job,@blogto')")
@@ -31,57 +34,69 @@ def main():
         print("No posts found to process.")
         return
 
-    # 2. Analyze & Save
-    print("\n[2/3] Analyzing and Saving posts...")
-    processed_count = 0
-    saved_count = 0
+    # 2. Analyze all posts first
+    print("\n[2/3] Analyzing posts...")
+    analyzed_results = []
     
     for i, post in enumerate(posts):
-        print(f"\n--- Processing Post {i+1}/{len(posts)} ---")
+        print(f"\n--- Analyzing Post {i+1}/{len(posts)} ---")
         try:
-            # Analyze
             print(f"Analyzing post from {post.get('username')}...")
             analysis_result = analyze_post(post)
             
-            category = analysis_result.get("category")
+            category = analysis_result.get("category", "Error")
             print(f"Category: {category}")
             
             if category == "Error":
                 print(f"Skipping due to analysis error: {analysis_result.get('error')}")
                 continue
 
-            # CRITICAL FIX: Ensure metadata (shortcode, url) is preserved.
-            # Gemini might lose them or return null. We force them from the source post.
+            # Preserve metadata from source post
             if "data" not in analysis_result:
                 analysis_result["data"] = {}
             
             analysis_result["data"]["instagram_shortcode"] = post.get("shortcode")
-            # Only set if missing or empty, or just overwrite to be safe? Overwrite is safest.
             analysis_result["data"]["original_url"] = post.get("postUrl")
             analysis_result["data"]["posted_at"] = post.get("timestamp")
             analysis_result["data"]["author"] = post.get("username")
-                
-            # Save
-            if save_post(analysis_result):
-                print("Successfully saved to database.")
-                saved_count += 1
-            else:
-                print("Failed to save or skipped.")
             
-            processed_count += 1
-            # Respect rate limits (Gemini Free Tier is ~15 RPM, so waiting 20s is safe)
-            time.sleep(20) 
+            analyzed_results.append(analysis_result)
+            
+            # Respect rate limits (Gemini Free Tier is ~15 RPM)
+            time.sleep(20)
             
         except Exception as e:
             print(f"Error processing post: {e}")
             continue
 
-    # 3. Summary
+    # 3. Sort by category priority (Job > House > Event > Ignore)
+    print("\n[3/3] Sorting by priority and saving...")
+    analyzed_results.sort(key=lambda x: CATEGORY_PRIORITY.get(x.get("category", "Ignore"), 3))
+    
+    # Count by category
+    category_counts = {}
+    for result in analyzed_results:
+        cat = result.get("category", "Unknown")
+        category_counts[cat] = category_counts.get(cat, 0) + 1
+    print(f"Category breakdown: {category_counts}")
+    
+    # Save sorted results
+    saved_count = 0
+    for result in analyzed_results:
+        if save_post(result):
+            print(f"Saved {result.get('category')} post: {result.get('data', {}).get('instagram_shortcode')}")
+            saved_count += 1
+        else:
+            print("Failed to save.")
+
+    # Summary
     print("\n=== Execution Summary ===")
     print(f"Total Fetched: {len(posts)}")
-    print(f"Processed: {processed_count}")
+    print(f"Analyzed: {len(analyzed_results)}")
     print(f"Saved to DB: {saved_count}")
+    print(f"Priority order: Job({category_counts.get('Job', 0)}) > House({category_counts.get('House', 0)}) > Event({category_counts.get('Event', 0)}) > Ignore({category_counts.get('Ignore', 0)})")
     print("=== Done ===")
 
 if __name__ == "__main__":
     main()
+

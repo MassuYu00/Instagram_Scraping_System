@@ -147,11 +147,13 @@ def fetch_instagram_posts(custom_targets=None, country="Toronto"):
     existing_shortcodes = get_existing_shortcodes()
     print(f"Found {len(existing_shortcodes)} existing posts in database.")
     
-    # Threshold for fresh content (730 days)
-    cutoff_date = datetime.now(timezone.utc) - timedelta(days=730)
+    # Only get posts from the last 7 days
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=7)
+    print(f"Filtering posts newer than: {cutoff_date.strftime('%Y-%m-%d')}")
     
     print(f"Filtering {len(posts)} raw posts...")
     skipped_duplicates = 0
+    skipped_old = 0
     
     for post in posts:
         # 0. Validate it's a post
@@ -164,12 +166,13 @@ def fetch_instagram_posts(custom_targets=None, country="Toronto"):
             skipped_duplicates += 1
             continue
 
-        # 2. Date Filter
+        # 2. Date Filter - Skip posts older than 7 days
         timestamp_str = post.get("timestamp")
         if timestamp_str:
             try:
                 post_date = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
                 if post_date < cutoff_date:
+                    skipped_old += 1
                     continue
             except ValueError:
                 pass
@@ -190,6 +193,7 @@ def fetch_instagram_posts(custom_targets=None, country="Toronto"):
     final_posts = formatted_posts[:10]
     
     print(f"Skipped {skipped_duplicates} duplicate posts.")
+    print(f"Skipped {skipped_old} old posts (older than 7 days).")
     print(f"Retained {len(final_posts)} new posts for processing (Max 10).")
     return final_posts
 
