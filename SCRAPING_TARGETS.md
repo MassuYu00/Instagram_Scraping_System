@@ -3,7 +3,8 @@
 Instagram Scraping Systemの国別スクレイピングターゲット設定
 
 > **最終更新**: 2026-02-08
-> **変更内容**: レストランアカウント削除、ハッシュタグ検索重視に変更
+> **バージョン**: 2.0
+> **変更内容**: Apify Instagram Hashtag Scraperに移行、セキュリティ強化
 
 ---
 
@@ -13,9 +14,25 @@ Instagram Scraping Systemの国別スクレイピングターゲット設定
 
 ### ⚠️ 重要な設計方針
 
-**Job（求人）とHouse（住居）のみを収集対象とします。**
+**Job（求人）とHouse（住居）を最優先で収集します。**
 
-#### なぜレストランアカウントを削除したか？
+#### Apify Instagram Hashtag Scraper への移行
+
+| 変更前 | 変更後 |
+|--------|--------|
+| `apify~instagram-scraper` | `apify~instagram-hashtag-scraper` |
+| directUrls方式 | hashtags配列方式 |
+| アカウント+ハッシュタグ混在 | ハッシュタグ検索のみ |
+
+#### なぜ移行したか？
+
+| 理由 | 詳細 |
+|------|------|
+| **データ取得精度** | Hashtag Scraperは投稿データを直接返却（メタデータのみを返す問題を解消） |
+| **多様なソース** | ハッシュタグ検索で多くのアカウントから情報を取得可能 |
+| **安定性** | 専用Actorのため安定して動作 |
+
+#### レストランアカウントを削除した理由
 
 | 問題 | 詳細 |
 |------|------|
@@ -23,24 +40,62 @@ Instagram Scraping Systemの国別スクレイピングターゲット設定
 | **プロモーション誤分類** | 「新メニュー」「キャンペーン」がEventと誤分類される |
 | **多様性の欠如** | 飲食ばかりで他業種の求人が取れない |
 
-#### 新しい戦略
-
-1. **ハッシュタグ検索を中心に** - 多様なソースから情報を取得
-2. **コミュニティ掲示板アカウントのみ** - 求人/住居情報を専門に扱うアカウント
-3. **AIプロンプト強化** - 飲食プロモーションは必ずIgnoreに分類
-
 ### 処理フロー
 
 ```
-1. Apifyでハッシュタグ/アカウントから投稿を取得
+1. Apify Instagram Hashtag Scraperでハッシュタグから投稿を取得
+   ├── 最大5ハッシュタグを検索（COUNTRY_TARGETS[:5]）
+   └── Residentialプロキシ使用でブロック回避
+           ↓
 2. 日付フィルター（14日以内のみ）
-3. 重複フィルター（DB既存をスキップ）
-4. Gemini APIでカテゴリ分類
-   - 求人/住居 → 保存
-   - 飲食プロモーション → Ignore（削除）
-   - コミュニティイベント → Event（条件厳格）
+           ↓
+3. 重複フィルター（DB既存のshortCodeをスキップ）
+           ↓
+4. Gemini Vision APIでカテゴリ分類
+   ├── テキスト解析
+   └── 画像内テキスト解析（求人画像に有効）
+           ↓
 5. 優先順位でソート（Job > House > Event > Ignore）
+           ↓
 6. Supabaseに保存
+```
+
+---
+
+## 技術仕様
+
+### Apify Actor設定
+
+```python
+APIFY_ACTOR_ID = "apify~instagram-hashtag-scraper"
+
+actor_input = {
+    "hashtags": hashtags[:5],  # 最初の5ハッシュタグを使用
+    "resultsLimit": 50,        # ハッシュタグあたり最大50件
+    "proxy": {
+        "useApifyProxy": True,
+        "apifyProxyGroups": ["RESIDENTIAL"]
+    }
+}
+```
+
+### 取得されるデータ構造
+
+```json
+{
+    "inputUrl": "https://www.instagram.com/explore/tags/torontojobs",
+    "id": "3822486619098940385",
+    "type": "Image",
+    "shortCode": "DUMM1PiE4Ph",
+    "caption": "We're hiring! Server position available...",
+    "hashtags": ["NowHiring", "TorontoJobs"],
+    "url": "https://www.instagram.com/p/DUMM1PiE4Ph/",
+    "displayUrl": "https://...",
+    "timestamp": "2026-02-05T10:00:00.000Z",
+    "ownerUsername": "restaurant_name",
+    "likesCount": 42,
+    "commentsCount": 3
+}
 ```
 
 ---
@@ -49,148 +104,132 @@ Instagram Scraping Systemの国別スクレイピングターゲット設定
 
 ### 🇨🇦 Toronto (Canada)
 
-#### ハッシュタグ（メイン）
+#### ハッシュタグ（最初の5つを使用）
 
-| ハッシュタグ | 説明 | 優先度 |
-|------------|------|--------|
-| `#torontojobs` | 求人全般 | ★★★ Job |
-| `#torontohiring` | 採用情報 | ★★★ Job |
-| `#gtajobs` | GTA地域求人 | ★★★ Job |
-| `#torontowork` | 仕事情報 | ★★★ Job |
-| `#hiringtoronto` | 採用中 | ★★★ Job |
-| `#トロント求人` | 日本語求人 | ★★★ Job |
-| `#トロント仕事` | 日本語仕事 | ★★★ Job |
-| `#カナダ求人` | カナダ全般求人 | ★★★ Job |
-| `#ワーホリ求人` | ワーホリ向け求人 | ★★★ Job |
-| `#torontorentals` | 賃貸全般 | ★★★ House |
-| `#torontohousing` | 住居情報 | ★★★ House |
-| `#torontoroommate` | ルームメイト | ★★★ House |
-| `#トロント賃貸` | 日本語賃貸 | ★★★ House |
-| `#トロントシェアハウス` | シェアハウス | ★★★ House |
-| `#トロント部屋探し` | 部屋探し | ★★★ House |
+| # | ハッシュタグ | 説明 | カテゴリ |
+|---|------------|------|----------|
+| 1 | `torontojobs` | 求人全般 | Job |
+| 2 | `torontohiring` | 採用情報 | Job |
+| 3 | `gtajobs` | GTA地域求人 | Job |
+| 4 | `torontowork` | 仕事情報 | Job |
+| 5 | `hiringtoronto` | 採用中 | Job |
 
-#### アカウント（コミュニティ掲示板のみ）
+#### 全ハッシュタグ一覧
 
-| アカウント | 説明 |
-|-----------|------|
-| `@jpcanada_com` | JPCanada（求人・住居掲示板） |
-| `@eマップル` | e-Maple（コミュニティ情報） |
+**求人系（Job）**
+- `torontojobs`, `torontohiring`, `gtajobs`, `torontowork`, `hiringtoronto`
+- `トロント求人`, `トロント仕事`, `カナダ求人`, `ワーホリ求人`
+
+**住居系（House）**
+- `torontorentals`, `torontohousing`, `torontoroommate`
+- `トロント賃貸`, `トロントシェアハウス`, `トロント部屋探し`
+
+#### 参考アカウント（現在未使用）
+
+| アカウント | 説明 | 備考 |
+|-----------|------|------|
+| `@jpcanada_com` | JPCanada掲示板 | ハッシュタグ検索で取得可能 |
+| `@eマップル` | e-Maple | ハッシュタグ検索で取得可能 |
 
 ---
 
 ### 🇹🇭 Thailand
 
-#### ハッシュタグ
+#### ハッシュタグ（最初の5つを使用）
 
-| ハッシュタグ | 説明 | 優先度 |
-|------------|------|--------|
-| `#bangkokjobs` | バンコク求人 | ★★★ Job |
-| `#thailandjobs` | タイ求人 | ★★★ Job |
-| `#タイ求人` | 日本語求人 | ★★★ Job |
-| `#タイ就職` | 就職情報 | ★★★ Job |
-| `#バンコク求人` | バンコク求人 | ★★★ Job |
-| `#タイ転職` | 転職情報 | ★★★ Job |
-| `#タイ駐在` | 駐在情報 | ★★★ Job |
-| `#bangkokrentals` | バンコク賃貸 | ★★★ House |
-| `#bangkokcondo` | コンドミニアム | ★★★ House |
-| `#バンコク賃貸` | 日本語賃貸 | ★★★ House |
-| `#バンコクコンドミニアム` | コンドミニアム | ★★★ House |
-| `#タイ不動産` | 不動産情報 | ★★★ House |
+| # | ハッシュタグ | 説明 | カテゴリ |
+|---|------------|------|----------|
+| 1 | `bangkokjobs` | バンコク求人 | Job |
+| 2 | `thailandjobs` | タイ求人 | Job |
+| 3 | `タイ求人` | 日本語求人 | Job |
+| 4 | `タイ就職` | 就職情報 | Job |
+| 5 | `バンコク求人` | バンコク求人 | Job |
 
-#### アカウント（人材会社のみ）
+#### 全ハッシュタグ一覧
 
-| アカウント | 説明 |
-|-----------|------|
-| `@personnelconsultant` | 人材紹介会社 |
-| `@reeracoen_thailand` | リーラコーエン（人材） |
+**求人系（Job）**
+- `bangkokjobs`, `thailandjobs`, `タイ求人`, `タイ就職`, `バンコク求人`
+- `タイ転職`, `タイ駐在`
+
+**住居系（House）**
+- `bangkokrentals`, `bangkokcondo`
+- `バンコク賃貸`, `バンコクコンドミニアム`, `タイ不動産`
 
 ---
 
 ### 🇵🇭 Philippines
 
-#### ハッシュタグ
+#### ハッシュタグ（最初の5つを使用）
 
-| ハッシュタグ | 説明 | 優先度 |
-|------------|------|--------|
-| `#フィリピン求人` | 日本語求人 | ★★★ Job |
-| `#セブ求人` | セブ求人 | ★★★ Job |
-| `#マニラ求人` | マニラ求人 | ★★★ Job |
-| `#cebujobs` | セブ求人 | ★★★ Job |
-| `#manilajobs` | マニラ求人 | ★★★ Job |
-| `#philippinesjobs` | フィリピン求人 | ★★★ Job |
-| `#フィリピン就職` | 就職情報 | ★★★ Job |
-| `#ceburentals` | セブ賃貸 | ★★★ House |
-| `#manilarentals` | マニラ賃貸 | ★★★ House |
-| `#セブ賃貸` | セブ賃貸 | ★★★ House |
+| # | ハッシュタグ | 説明 | カテゴリ |
+|---|------------|------|----------|
+| 1 | `フィリピン求人` | 日本語求人 | Job |
+| 2 | `セブ求人` | セブ求人 | Job |
+| 3 | `マニラ求人` | マニラ求人 | Job |
+| 4 | `cebujobs` | セブ求人 | Job |
+| 5 | `manilajobs` | マニラ求人 | Job |
 
-#### アカウント
+#### 全ハッシュタグ一覧
 
-| アカウント | 説明 |
-|-----------|------|
-| `@reeracoen_ph` | 日系人材紹介 |
+**求人系（Job）**
+- `フィリピン求人`, `セブ求人`, `マニラ求人`, `cebujobs`, `manilajobs`
+- `philippinesjobs`, `フィリピン就職`
+
+**住居系（House）**
+- `ceburentals`, `manilarentals`, `セブ賃貸`
 
 ---
 
 ### 🇬🇧 UK (イギリス)
 
-#### ハッシュタグ
+#### ハッシュタグ（最初の5つを使用）
 
-| ハッシュタグ | 説明 | 優先度 |
-|------------|------|--------|
-| `#londonjobs` | ロンドン求人 | ★★★ Job |
-| `#ukhiring` | UK採用 | ★★★ Job |
-| `#londonhiring` | ロンドン採用 | ★★★ Job |
-| `#ukjobs` | UK求人 | ★★★ Job |
-| `#ロンドン求人` | 日本語求人 | ★★★ Job |
-| `#イギリス求人` | イギリス求人 | ★★★ Job |
-| `#イギリスワーホリ求人` | ワーホリ求人 | ★★★ Job |
-| `#ロンドン仕事` | 仕事情報 | ★★★ Job |
-| `#londonrentals` | ロンドン賃貸 | ★★★ House |
-| `#londonroomshare` | ルームシェア | ★★★ House |
-| `#londonflat` | フラット | ★★★ House |
-| `#ロンドン賃貸` | 日本語賃貸 | ★★★ House |
-| `#ロンドンシェアハウス` | シェアハウス | ★★★ House |
+| # | ハッシュタグ | 説明 | カテゴリ |
+|---|------------|------|----------|
+| 1 | `londonjobs` | ロンドン求人 | Job |
+| 2 | `ukhiring` | UK採用 | Job |
+| 3 | `londonhiring` | ロンドン採用 | Job |
+| 4 | `ukjobs` | UK求人 | Job |
+| 5 | `ロンドン求人` | 日本語求人 | Job |
 
-#### アカウント
+#### 全ハッシュタグ一覧
 
-| アカウント | 説明 |
-|-----------|------|
-| `@mixb_london` | MixB（求人・住居掲示板） |
+**求人系（Job）**
+- `londonjobs`, `ukhiring`, `londonhiring`, `ukjobs`
+- `ロンドン求人`, `イギリス求人`, `イギリスワーホリ求人`, `ロンドン仕事`
+
+**住居系（House）**
+- `londonrentals`, `londonroomshare`, `londonflat`
+- `ロンドン賃貸`, `ロンドンシェアハウス`
 
 ---
 
 ### 🇦🇺 Australia
 
-#### ハッシュタグ
+#### ハッシュタグ（最初の5つを使用）
 
-| ハッシュタグ | 説明 | 優先度 |
-|------------|------|--------|
-| `#sydneyjobs` | シドニー求人 | ★★★ Job |
-| `#melbournejobs` | メルボルン求人 | ★★★ Job |
-| `#australiajobs` | オーストラリア求人 | ★★★ Job |
-| `#オーストラリア求人` | 日本語求人 | ★★★ Job |
-| `#シドニー求人` | シドニー求人 | ★★★ Job |
-| `#メルボルン求人` | メルボルン求人 | ★★★ Job |
-| `#ワーホリオーストラリア` | ワーホリ情報 | ★★★ Job |
-| `#オーストラリアワーホリ求人` | ワーホリ求人 | ★★★ Job |
-| `#sydneyrentals` | シドニー賃貸 | ★★★ House |
-| `#melbournerentals` | メルボルン賃貸 | ★★★ House |
-| `#シドニー賃貸` | シドニー賃貸 | ★★★ House |
-| `#メルボルン賃貸` | メルボルン賃貸 | ★★★ House |
-| `#シドニーシェアハウス` | シェアハウス | ★★★ House |
+| # | ハッシュタグ | 説明 | カテゴリ |
+|---|------------|------|----------|
+| 1 | `sydneyjobs` | シドニー求人 | Job |
+| 2 | `melbournejobs` | メルボルン求人 | Job |
+| 3 | `australiajobs` | オーストラリア求人 | Job |
+| 4 | `オーストラリア求人` | 日本語求人 | Job |
+| 5 | `シドニー求人` | シドニー求人 | Job |
 
-#### アカウント（コミュニティメディアのみ）
+#### 全ハッシュタグ一覧
 
-| アカウント | 説明 |
-|-----------|------|
-| `@nichigopress` | 日豪プレス（求人掲載多い） |
-| `@jams_tv_au` | JAMS.TV（求人掲載） |
+**求人系（Job）**
+- `sydneyjobs`, `melbournejobs`, `australiajobs`
+- `オーストラリア求人`, `シドニー求人`, `メルボルン求人`
+- `ワーホリオーストラリア`, `オーストラリアワーホリ求人`
+
+**住居系（House）**
+- `sydneyrentals`, `melbournerentals`
+- `シドニー賃貸`, `メルボルン賃貸`, `シドニーシェアハウス`
 
 ---
 
 ## 削除されたターゲット
-
-以下のターゲットは削除されました：
 
 ### レストランアカウント（全削除）
 
@@ -215,6 +254,12 @@ Instagram Scraping Systemの国別スクレイピングターゲット設定
 ---
 
 ## AI分類ルール
+
+### 優先順位
+
+```
+Job 💼 > House 🏠 > Event 🎉 > Ignore 🚫
+```
 
 ### 厳格なIgnore判定
 
@@ -248,8 +293,27 @@ Eventと分類されるには**全て**が必要：
 | 項目 | 値 | 説明 |
 |---|---|---|
 | 日付フィルター | 14日 | 14日以上前の投稿はスキップ |
-| 重複フィルター | ON | DB既存のshortcodeはスキップ |
-| 取得上限 | 10件 | 1回の実行で最大10件処理 |
+| 重複フィルター | ON | DB既存のshortCodeはスキップ |
+| ハッシュタグ上限 | 5個 | 最初の5ハッシュタグのみ使用 |
+| 取得上限/ハッシュタグ | 50件 | 各ハッシュタグから最大50件取得 |
+| 処理上限 | 10件 | 1回の実行で最大10件をAI解析 |
+
+---
+
+## セキュリティ対策
+
+### APIエンドポイント（/api/scrape）
+
+| 対策 | 内容 |
+|------|------|
+| **ホワイトリスト検証** | country は許可された5か国のみ |
+| **数値バリデーション** | days: 1-365, limit: 1-50 の範囲制限 |
+| **コマンドインジェクション防止** | シェルコマンドに直接入力を渡さない |
+
+```typescript
+const ALLOWED_COUNTRIES = ['Toronto', 'Thailand', 'Philippines', 'UK', 'Australia'];
+const safeCountry = ALLOWED_COUNTRIES.includes(country) ? country : 'Toronto';
+```
 
 ---
 
@@ -257,6 +321,9 @@ Eventと分類されるには**全て**が必要：
 
 | 日付 | 内容 |
 |------|------|
+| 2026-02-08 | Apify Instagram Hashtag Scraper に移行 |
+| 2026-02-08 | セキュリティ対策（コマンドインジェクション防止）追加 |
+| 2026-02-08 | 技術仕様セクション追加 |
 | 2026-02-08 | レストランアカウントを全削除 |
 | 2026-02-08 | ハッシュタグ検索を大幅増強 |
 | 2026-02-08 | AIプロンプト強化（飲食プロモーション→Ignore） |
