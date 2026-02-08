@@ -24,73 +24,129 @@ def get_existing_shortcodes():
     except Exception as e:
         print(f"Warning: Could not fetch existing shortcodes: {e}")
         return set()
-APIFY_ACTOR_ID = "shu8hvrXbJbY3Eb9W"  # Instagram Scraper (apify/instagram-scraper) - confirm this ID or similar
+APIFY_ACTOR_ID = "apify~instagram-hashtag-scraper"  # Official Apify Instagram Scraper
 
+# =====================================
+# 求人/住居情報に特化したターゲット設定
+# 
+# 重要: レストランアカウントは求人より料理写真が多いため削除
+# ハッシュタグ検索を中心に多様なソースから情報を取得
+# =====================================
 COUNTRY_TARGETS = {
     "Toronto": {
-        "hashtags": ["torontojobs", "torontorentals", "トロント求人", "torontoevents"],
+        # ハッシュタグ検索を中心に（多様なソースから取得）
+        "hashtags": [
+            # 求人系（最優先）
+            "torontojobs",           # 求人全般
+            "torontohiring",         # 採用情報
+            "gtajobs",               # GTA地域求人
+            "torontowork",           # 仕事情報
+            "hiringtoronto",         # 採用中
+            "トロント求人",           # 日本語求人
+            "トロント仕事",           # 日本語仕事
+            "カナダ求人",             # カナダ全般求人
+            "ワーホリ求人",           # ワーホリ向け求人
+            # 住居系
+            "torontorentals",        # 賃貸全般
+            "torontohousing",        # 住居情報
+            "torontoroommate",       # ルームメイト
+            "トロント賃貸",           # 日本語賃貸
+            "トロントシェアハウス",   # シェアハウス
+            "トロント部屋探し",       # 部屋探し
+        ],
+        # 掲示板・コミュニティ系アカウントのみ（レストランは除外）
         "accounts": [
-            "blogto",           # トロントのニュース・イベント情報
-            "torontolife",      # トロントのライフスタイル情報
-            "sansoteiramen",    # 日本食レストラン（求人あり）
-            "gyukaku",          # 牛角（求人頻度高い）
-            "kibosushi_official", # KIBO寿司（寿司シェフ求人）
-            "hibachicanada",    # Hibachi（複数ポジション求人）
+            # 日系コミュニティ掲示板
+            "jpcanada_com",          # JPCanada（求人・住居掲示板）
+            "eマップル",              # e-Maple（コミュニティ情報）
         ]
     },
     "Thailand": {
         "hashtags": [
-            "bangkokjobs",      # バンコク求人
-            "bangkokrentals",   # バンコク賃貸
-            "タイ就職",          # 日本語ハッシュタグ
-            "バンコク駐在",      # 駐在員向け
-            "バンコク生活",      # 生活情報
-            "thailandexpat",    # 外国人向け
+            # 求人系
+            "bangkokjobs",           # バンコク求人
+            "thailandjobs",          # タイ求人
+            "タイ求人",               # 日本語求人
+            "タイ就職",               # 就職情報
+            "バンコク求人",           # バンコク求人
+            "タイ転職",               # 転職情報
+            "タイ駐在",               # 駐在情報
+            # 住居系
+            "bangkokrentals",        # バンコク賃貸
+            "bangkokcondo",          # コンドミニアム
+            "バンコク賃貸",           # 日本語賃貸
+            "バンコクコンドミニアム", # コンドミニアム
+            "タイ不動産",             # 不動産情報
         ],
+        # 不動産・人材紹介会社のみ
         "accounts": [
-            "renosy_thailand",  # 日系不動産（住居情報）
-            "bangkokfudosan",   # バンコク不動産
+            "personnelconsultant",   # 人材紹介会社
+            "reeracoen_thailand",    # リーラコーエン（人材）
         ]
     },
     "Philippines": {
         "hashtags": [
-            "cebulife",         # セブ島生活
-            "manilalife",       # マニラ生活
-            "セブ島留学",        # 留学生向け
-            "フィリピン求人",    # 求人情報
-            "cebuenglish",      # 英語留学
-            "philippinesexpat", # 外国人向け
+            # 求人系
+            "フィリピン求人",         # 日本語求人
+            "セブ求人",               # セブ求人
+            "マニラ求人",             # マニラ求人
+            "cebujobs",              # セブ求人
+            "manilajobs",            # マニラ求人
+            "philippinesjobs",       # フィリピン求人
+            "フィリピン就職",         # 就職情報
+            # 住居系
+            "ceburentals",           # セブ賃貸
+            "manilarentals",         # マニラ賃貸
+            "セブ賃貸",               # セブ賃貸
         ],
         "accounts": [
-            "cebuenglish",      # セブ英語留学情報
+            "reeracoen_ph",          # 日系人材紹介
         ]
     },
     "UK": {
         "hashtags": [
-            "londonjobs",       # ロンドン求人
-            "londonrentals",    # ロンドン賃貸
-            "イギリスワーホリ",  # ワーホリ向け
-            "ロンドン生活",      # 生活情報
-            "londonjapan",      # 日本人コミュニティ
-            "ukworkingholiday", # ワーホリ
+            # 求人系
+            "londonjobs",            # ロンドン求人
+            "ukhiring",              # UK採用
+            "londonhiring",          # ロンドン採用
+            "ukjobs",                # UK求人
+            "ロンドン求人",           # 日本語求人
+            "イギリス求人",           # イギリス求人
+            "イギリスワーホリ求人",   # ワーホリ求人
+            "ロンドン仕事",           # 仕事情報
+            # 住居系
+            "londonrentals",         # ロンドン賃貸
+            "londonroomshare",       # ルームシェア
+            "londonflat",            # フラット
+            "ロンドン賃貸",           # 日本語賃貸
+            "ロンドンシェアハウス",   # シェアハウス
         ],
         "accounts": [
-            "japanhouseld",     # Japan House London（文化・イベント）
-            "mixb_london",      # MixB（求人・住居掲示板）
+            "mixb_london",           # MixB（求人・住居掲示板）
         ]
     },
     "Australia": {
         "hashtags": [
-            "sydneyjobs",       # シドニー求人
-            "melbournejobs",    # メルボルン求人
-            "オーストラリアワーホリ", # ワーホリ向け
-            "シドニー生活",      # 生活情報
-            "メルボルンカフェ",  # カフェ求人（ワーホリ人気）
-            "australiaworkingholiday",
+            # 求人系
+            "sydneyjobs",            # シドニー求人
+            "melbournejobs",         # メルボルン求人
+            "australiajobs",         # オーストラリア求人
+            "オーストラリア求人",     # 日本語求人
+            "シドニー求人",           # シドニー求人
+            "メルボルン求人",         # メルボルン求人
+            "ワーホリオーストラリア", # ワーホリ情報
+            "オーストラリアワーホリ求人", # ワーホリ求人
+            # 住居系
+            "sydneyrentals",         # シドニー賃貸
+            "melbournerentals",      # メルボルン賃貸
+            "シドニー賃貸",           # シドニー賃貸
+            "メルボルン賃貸",         # メルボルン賃貸
+            "シドニーシェアハウス",   # シェアハウス
         ],
+        # コミュニティメディアのみ
         "accounts": [
-            "nichigopress",     # 日豪プレス（日本人コミュニティメディア）
-            "izakayadomo",      # 居酒屋DOMO（メルボルン求人）
+            "nichigopress",          # 日豪プレス（求人掲載多い）
+            "jams_tv_au",            # JAMS.TV（求人掲載）
         ]
     }
 }
@@ -116,18 +172,14 @@ def fetch_instagram_posts(country="Toronto", days_filter=14, max_posts=10, skip_
     hashtags = target_data.get("hashtags", [])
     accounts = target_data.get("accounts", [])
     
-    direct_urls = [f"https://www.instagram.com/explore/tags/{tag}/" for tag in hashtags]
-    direct_urls += [f"https://www.instagram.com/{account}/" for account in accounts]
-
-    
-    # Configuration for apify/instagram-scraper
+    # Configuration for apify/instagram-hashtag-scraper
+    # Reference: https://apify.com/apify/instagram-hashtag-scraper
     actor_input = {
-        "directUrls": direct_urls,
-        "resultsType": "posts",
-        "resultsLimit": 10, # Increased to 10 as per user request
-        "searchType": "hashtag", # Default fallback, though directUrls overrides usually
+        "hashtags": hashtags[:5],  # Use first 5 hashtags to avoid overload
+        "resultsLimit": 50,        # Posts per hashtag
         "proxy": {
-            "useApifyProxy": True
+            "useApifyProxy": True,
+            "apifyProxyGroups": ["RESIDENTIAL"]
         }
     }
     
@@ -135,7 +187,7 @@ def fetch_instagram_posts(country="Toronto", days_filter=14, max_posts=10, skip_
     url = f"https://api.apify.com/v2/acts/{APIFY_ACTOR_ID}/runs?token={APIFY_TOKEN}"
     
     print(f"Starting Apify Actor ({APIFY_ACTOR_ID})...")
-    print(f"Targets: {len(direct_urls)} URLs")
+    print(f"Hashtags: {actor_input.get('hashtags')}")
     
     response = requests.post(url, json=actor_input)
     
@@ -190,6 +242,7 @@ def fetch_instagram_posts(country="Toronto", days_filter=14, max_posts=10, skip_
     print(f"Filtering posts newer than: {cutoff_date.strftime('%Y-%m-%d')} ({days_filter} days)")
     
     print(f"Filtering {len(posts)} raw posts...")
+    
     skipped_duplicates = 0
     skipped_old = 0
     

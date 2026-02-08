@@ -6,25 +6,24 @@ export async function POST(request: Request) {
   try {
     const { country, daysFilter, maxPosts, skipDuplicates } = await request.json().catch(() => ({}));
 
+    // Security: Whitelist allowed countries to prevent command injection
+    const ALLOWED_COUNTRIES = ['Toronto', 'Thailand', 'Philippines', 'UK', 'Australia'];
+    const safeCountry = ALLOWED_COUNTRIES.includes(country) ? country : 'Toronto';
+
+    // Security: Validate numeric inputs
+    const safeDaysFilter = typeof daysFilter === 'number' && daysFilter >= 1 && daysFilter <= 365 ? Math.floor(daysFilter) : 14;
+    const safeMaxPosts = typeof maxPosts === 'number' && maxPosts >= 1 && maxPosts <= 50 ? Math.floor(maxPosts) : 10;
+
     // Determine the path to the main.py script
     // Assuming 'frontend' is in the project root, and main.py is in the parent directory
     const scriptPath = path.resolve(process.cwd(), '../main.py');
     const projectRoot = path.resolve(process.cwd(), '../');
 
+    // Build command with validated inputs only
     let command = `python3 ${scriptPath}`;
-
-    if (country && typeof country === 'string' && country.trim().length > 0) {
-      command += ` --country "${country}"`;
-    }
-
-    // Add filter settings
-    if (daysFilter && typeof daysFilter === 'number') {
-      command += ` --days ${daysFilter}`;
-    }
-
-    if (maxPosts && typeof maxPosts === 'number') {
-      command += ` --limit ${maxPosts}`;
-    }
+    command += ` --country "${safeCountry}"`;
+    command += ` --days ${safeDaysFilter}`;
+    command += ` --limit ${safeMaxPosts}`;
 
     if (skipDuplicates === false) {
       command += ` --no-skip-duplicates`;

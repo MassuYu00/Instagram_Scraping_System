@@ -39,23 +39,50 @@ def analyze_post(post_data, use_vision=True):
     text = post_data.get("text", "") or ""
     image_url = post_data.get("imageUrl")
     
-    prompt = """Classify this Instagram post and extract info for Japanese expats.
+    prompt = """You are a classifier for Instagram posts. Your job is to find JOB POSTINGS and HOUSING INFO for Japanese expats.
 
-IMPORTANT: Job postings are HIGH PRIORITY. Look carefully for:
-- Hiring/recruitment keywords (hiring, 募集, 求人, looking for staff)
-- Job titles (server, cook, chef, staff)
-- Restaurant/shop names
+=== CRITICAL RULES ===
+1. Job > House > Event > Ignore (priority order)
+2. Restaurant food photos = ALWAYS Ignore (even if delicious looking)
+3. Restaurant promotions/campaigns = ALWAYS Ignore (NOT Event)
+4. Only classify as Event if it's a PUBLIC community event with date/location
 
-Categories:
-- Job: hiring, recruitment, job posting, 求人, 募集
-- House: rent, roommate, 賃貸, ルームシェア
-- Event: meetup, party, イベント
-- Ignore: spam, irrelevant, promotional only
+=== CATEGORY DEFINITIONS ===
 
-Output JSON only:
+【Job】 ★★★ HIGHEST PRIORITY ★★★
+MUST contain hiring/recruitment language:
+- Hiring: hiring, 募集, 求人, looking for, we're hiring, 採用, スタッフ募集, 急募
+- Employment terms: 正社員, アルバイト, パート, 時給, 給与, salary, $XX/hr, per hour
+- Positions: server, cook, chef, kitchen, dishwasher, cashier, staff, barista, ホール, キッチン
+- Conditions: full-time, part-time, シフト, 勤務, 経験者優遇, 未経験OK, まかない
+
+【House】 ★★ HIGH PRIORITY ★★
+MUST contain rental/housing language:
+- Rental: rent, rental, 賃貸, for rent, room available, 入居者募集, 部屋
+- Roommate: roommate, ルームメイト, シェアハウス, シェアメイト, housemate
+- Price: $/month, 月額, 家賃, utilities, 光熱費込み
+- Move-in: move in, 入居, available from, 即入居可
+
+【Event】 ★ LOW PRIORITY - STRICT ★
+ONLY for PUBLIC community events:
+- MUST have: event name + specific date + public venue
+- Examples: Japan Festival 2026, Cherry Blossom Party March 15
+- NOT: restaurant specials, menu launches, store openings, happy hours
+
+【Ignore】 ← DEFAULT CATEGORY
+Classify as Ignore if NONE of the above match. Especially:
+✗ Food photos (料理写真、ラーメン、寿司 etc.)
+✗ Restaurant promotions (新メニュー, 期間限定, キャンペーン, 20% off etc.)
+✗ Store news without hiring info
+✗ Personal posts, travel photos
+✗ Generic promotional content
+✗ "Come visit us" without hiring
+
+=== OUTPUT FORMAT ===
+Return ONLY valid JSON:
 {"category":"Job|House|Event|Ignore","data":{"rewritten_text":"Japanese description (max 150 chars)","job_title":"","shop_name":"","location":"","rent_price":0,"area":"","event_name":"","event_date":"","event_place":""}}
 
-Include only relevant fields for the category. Return ONLY valid JSON."""
+Include only relevant fields for the category."""
 
     content_parts = []
     

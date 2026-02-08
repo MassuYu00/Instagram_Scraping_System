@@ -15,7 +15,8 @@ interface Post {
     category: string;
     status: string;
     created_at: string;
-    analysis_result: any;
+    content: string;
+    details: any;
 }
 
 interface LogSummary {
@@ -70,6 +71,10 @@ export default function ScraperAdmin() {
     };
 
     const deleteSelectedPosts = async () => {
+        if (selectedPosts.length === 0) {
+            alert('削除する項目を選択してください');
+            return;
+        }
         if (!confirm(`${selectedPosts.length}件のデータを削除しますか？`)) return;
 
         setLoading(true);
@@ -83,11 +88,43 @@ export default function ScraperAdmin() {
         if (error) {
             alert('削除に失敗しました: ' + error.message);
         } else {
-            // Optimistic update or refetch
-            setPosts(prev => prev.filter(post => !selectedPosts.includes(post.id)));
-            setSelectedPosts([]);
+            // Refetch to ensure data consistency
+            await fetchPosts();
         }
         setLoading(false);
+    };
+
+    // 全データ削除
+    const deleteAllPosts = async () => {
+        if (!confirm('⚠️ 全ての投稿データを削除しますか？\n\nこの操作は取り消せません。')) return;
+        if (!confirm('本当に削除しますか？\n\n「OK」を押すと全データが削除されます。')) return;
+
+        setLoading(true);
+        const _supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+        // Delete all posts by using neq with a condition that matches all
+        const { error } = await _supabase
+            .from('posts')
+            .delete()
+            .neq('id', 0); // This matches all rows since id is always > 0
+
+        if (error) {
+            alert('削除に失敗しました: ' + error.message);
+        } else {
+            setPosts([]);
+            setSelectedPosts([]);
+            alert('全データを削除しました');
+        }
+        setLoading(false);
+    };
+
+    // 全選択/全解除
+    const toggleSelectAll = () => {
+        if (selectedPosts.length === posts.length) {
+            setSelectedPosts([]);
+        } else {
+            setSelectedPosts(posts.map(p => p.id));
+        }
     };
 
     // Parse log output to extract summary
@@ -374,31 +411,53 @@ export default function ScraperAdmin() {
             )}
 
             <div style={{ marginTop: '40px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                     <h3>取得済みデータ (最新10件)</h3>
-                    <div>
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                         {selectedPosts.length > 0 && (
                             <button
                                 onClick={deleteSelectedPosts}
                                 disabled={loading}
                                 style={{
-                                    marginRight: '10px',
-                                    padding: '5px 15px',
+                                    padding: '8px 16px',
                                     backgroundColor: '#ff4d4f',
                                     color: 'white',
                                     border: 'none',
                                     borderRadius: '5px',
-                                    cursor: 'pointer'
+                                    cursor: loading ? 'not-allowed' : 'pointer',
+                                    fontSize: '14px'
                                 }}
                             >
-                                選択した項目を削除 ({selectedPosts.length})
+                                🗑️ 選択削除 ({selectedPosts.length})
                             </button>
                         )}
                         <button
-                            onClick={fetchPosts}
-                            style={{ padding: '5px 10px', cursor: 'pointer' }}
+                            onClick={deleteAllPosts}
+                            disabled={loading || posts.length === 0}
+                            style={{
+                                padding: '8px 16px',
+                                backgroundColor: posts.length === 0 ? '#ccc' : '#dc3545',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '5px',
+                                cursor: (loading || posts.length === 0) ? 'not-allowed' : 'pointer',
+                                fontSize: '14px'
+                            }}
                         >
-                            データを更新
+                            ⚠️ 全データ削除
+                        </button>
+                        <button
+                            onClick={fetchPosts}
+                            style={{
+                                padding: '8px 16px',
+                                cursor: 'pointer',
+                                backgroundColor: '#f8f9fa',
+                                border: '1px solid #ddd',
+                                borderRadius: '5px',
+                                fontSize: '14px'
+                            }}
+                        >
+                            🔄 更新
                         </button>
                     </div>
                 </div>
@@ -415,7 +474,15 @@ export default function ScraperAdmin() {
                                     <th style={{ padding: '10px', border: '1px solid #ddd' }}>ステータス</th>
                                     <th style={{ padding: '10px', border: '1px solid #ddd' }}>内容</th>
                                     <th style={{ padding: '10px', border: '1px solid #ddd' }}>作成日時</th>
-                                    <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'center' }}>削除</th>
+                                    <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'center' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={posts.length > 0 && selectedPosts.length === posts.length}
+                                            onChange={toggleSelectAll}
+                                            style={{ transform: 'scale(1.5)', cursor: 'pointer' }}
+                                            title="全選択/全解除"
+                                        />
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -429,7 +496,7 @@ export default function ScraperAdmin() {
                                         <td style={{ padding: '10px', border: '1px solid #ddd' }}>{post.category}</td>
                                         <td style={{ padding: '10px', border: '1px solid #ddd' }}>{post.status}</td>
                                         <td style={{ padding: '10px', border: '1px solid #ddd', fontSize: '0.9em' }}>
-                                            {post.analysis_result?.data?.rewritten_text || 'No description'}
+                                            {post.content || post.details?.rewritten_text || 'No description'}
                                         </td>
                                         <td style={{ padding: '10px', border: '1px solid #ddd', fontSize: '0.8em' }}>
                                             {new Date(post.created_at).toLocaleString('ja-JP')}
